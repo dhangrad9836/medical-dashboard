@@ -1,0 +1,224 @@
+{% extends 'metrics/base.html' %}
+
+{% block title %}Reports - Healthcare Metrics{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1><i class="bi bi-bar-chart-fill"></i> Analytics & Reports</h1>
+    <p class="text-muted">Visual analysis of imaging department performance</p>
+</div>
+
+<!-- Charts -->
+<div class="row g-4">
+    <!-- Visits by Day of Week -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-calendar-week"></i> Visits by Day of Week</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="weekdayChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Exam Type Breakdown -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Exam Type Distribution</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="examPieChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Daily Trends -->
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-graph-up"></i> Daily Visit Trends (Last 30 Days)</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container" style="height: 400px;">
+                    <canvas id="dailyTrendChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Wait Time by Exam Type -->
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Average Wait Time by Exam Type</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container" style="height: 400px;">
+                    <canvas id="waitTimeChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Visits by Day of Week - Bar Chart
+const weekdayCtx = document.getElementById('weekdayChart').getContext('2d');
+const weekdayData = {{ weekday_data|safe }};
+new Chart(weekdayCtx, {
+    type: 'bar',
+    data: {
+        labels: Object.keys(weekdayData),
+        datasets: [{
+            label: 'Number of Visits',
+            data: Object.values(weekdayData),
+            backgroundColor: 'rgba(13, 110, 253, 0.7)',
+            borderColor: 'rgba(13, 110, 253, 1)',
+            borderWidth: 2
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 5
+                }
+            }
+        },
+        plugins: {
+            legend: {
+                display: false
+            },
+            title: {
+                display: false
+            }
+        }
+    }
+});
+
+// Exam Type Distribution - Pie Chart
+const examPieCtx = document.getElementById('examPieChart').getContext('2d');
+const examData = [
+    {% for exam in exam_breakdown %}
+    { label: '{{ exam.exam_type|slice:"4:" }}', value: {{ exam.count }} },
+    {% endfor %}
+];
+new Chart(examPieCtx, {
+    type: 'pie',
+    data: {
+        labels: examData.map(d => d.label),
+        datasets: [{
+            data: examData.map(d => d.value),
+            backgroundColor: [
+                'rgba(13, 110, 253, 0.7)',
+                'rgba(25, 135, 84, 0.7)',
+                'rgba(255, 193, 7, 0.7)',
+                'rgba(220, 53, 69, 0.7)',
+                'rgba(13, 202, 240, 0.7)',
+                'rgba(108, 117, 125, 0.7)',
+                'rgba(111, 66, 193, 0.7)',
+                'rgba(253, 126, 20, 0.7)',
+            ],
+            borderWidth: 2
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'right'
+            }
+        }
+    }
+});
+
+// Daily Trends - Line Chart
+const dailyTrendCtx = document.getElementById('dailyTrendChart').getContext('2d');
+const dailyData = [
+    {% for day in daily_trends %}
+    { date: '{{ day.date|date:"M d" }}', count: {{ day.count }} },
+    {% endfor %}
+];
+new Chart(dailyTrendCtx, {
+    type: 'line',
+    data: {
+        labels: dailyData.map(d => d.date),
+        datasets: [{
+            label: 'Daily Visits',
+            data: dailyData.map(d => d.count),
+            borderColor: 'rgba(13, 110, 253, 1)',
+            backgroundColor: 'rgba(13, 110, 253, 0.1)',
+            tension: 0.4,
+            fill: true,
+            borderWidth: 3
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        },
+        plugins: {
+            legend: {
+                display: true
+            }
+        }
+    }
+});
+
+// Wait Time by Exam Type - Horizontal Bar Chart
+const waitTimeCtx = document.getElementById('waitTimeChart').getContext('2d');
+const waitData = [
+    {% for item in wait_by_exam %}
+    { exam: '{{ item.exam_type|slice:"4:" }}', wait: {{ item.avg_wait|floatformat:1 }} },
+    {% endfor %}
+];
+new Chart(waitTimeCtx, {
+    type: 'bar',
+    data: {
+        labels: waitData.map(d => d.exam),
+        datasets: [{
+            label: 'Average Wait Time (minutes)',
+            data: waitData.map(d => d.wait),
+            backgroundColor: waitData.map(d => 
+                d.wait > 40 ? 'rgba(220, 53, 69, 0.7)' : 
+                d.wait > 30 ? 'rgba(255, 193, 7, 0.7)' : 
+                'rgba(25, 135, 84, 0.7)'
+            ),
+            borderWidth: 2
+        }]
+    },
+    options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            x: {
+                beginAtZero: true
+            }
+        },
+        plugins: {
+            legend: {
+                display: false
+            }
+        }
+    }
+});
+</script>
+{% endblock %}
